@@ -5,6 +5,9 @@ from deepeval.test_case import LLMTestCase
 from deepeval.models import AmazonBedrockModel
 from deepeval import evaluate
 
+# Demonstrates "LLM-as-a-judge" style relevance evaluation using DeepEval
+# with Amazon Bedrock as the evaluator model backend.
+
 async def eval_relevance():
     # 評価モデルを初期化
     deepeval_model = AmazonBedrockModel(
@@ -27,10 +30,12 @@ async def eval_relevance():
 
 
     # テストケースの設定
+    # The evaluated output should be relevant to the user input.
     test_case = LLMTestCase(
         input="今日の天気を教えてくれますか？",
         actual_output="今日の天気は晴れです。外出しやすく洗濯日和でしょう。",
     )
+    # Run evaluation once and then close underlying Bedrock model resources.
     evaluate(test_cases=[test_case], metrics=[metric])
     await deepeval_model.close()
 

@@ -3,6 +3,11 @@ from strands import Agent
 from strands.models import BedrockModel
 from strands.tools.mcp import MCPClient
 
+# Minimal client sample:
+# - connect to AgentCore Gateway over IAM-authenticated streamable HTTP
+# - collect all advertised tools (with pagination)
+# - execute a conversion prompt through Strands Agent
+
 # AgentCore Gateway エンドポイント
 GATEWAY_ENDPOINT = "<AgentCore Gatewayのエンドポイント>"
 
@@ -11,6 +16,7 @@ def create_aws_iam_streamable_http_mcp_client(
     aws_service: str = "bedrock-agentcore"
 ) -> MCPClient:
     """MCP Proxy for AWSを利用したMCPクライアントを作成する関数"""
+    # Wrap the IAM-authenticated HTTP transport in MCPClient.
     streamable_http_mcp_client = MCPClient(
         lambda: aws_iam_streamablehttp_client(
             endpoint=url,
@@ -27,6 +33,7 @@ def get_tools_list(client: MCPClient):
     pagination_token = None
     # ページネーションを使用してすべてのツールを取得
     while more_tools:
+        # Keep requesting subsequent pages until no token is returned.
         tmp_tools = client.list_tools_sync(pagination_token=pagination_token)
         tools.extend(tmp_tools)
         if tmp_tools.pagination_token is None:
@@ -52,6 +59,7 @@ def invoke_agent():
     with mcp_client:
         # 利用可能なツール一覧を取得
         mcp_tools = get_tools_list(mcp_client)
+        # Create a model-backed agent that can call any gateway-provided tool.
         # Bedrockのモデルを定義
         model = BedrockModel(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0")
         # エージェントを初期化
@@ -59,6 +67,7 @@ def invoke_agent():
             model=model,
             tools=mcp_tools
         )
+        # Prompt execution performs tool selection and conversion.
         agent(PROMPT)
 
 if __name__ == "__main__":

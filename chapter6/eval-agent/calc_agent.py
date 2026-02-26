@@ -12,6 +12,10 @@ from deepeval.metrics import MCPUseMetric
 from deepeval.models import AmazonBedrockModel
 from deepeval import evaluate
 
+# This module demonstrates both:
+# 1) running an MCP-enabled calculator agent
+# 2) evaluating MCP tool-usage quality with DeepEval
+
 # 数値計算エージェントクラス
 class CalcAgent:
     def __init__(self):
@@ -30,6 +34,7 @@ class CalcAgent:
         self, command: str, args: List[str], env: Dict = {}
     ) -> MCPClient:
         """Stdio MCPクライアントを作成する関数"""
+        # Each local MCP server is launched as a child process via stdio.
         stdio_mcp_client = MCPClient(
             lambda: stdio_client(
                 StdioServerParameters(command=command, args=args, env=env)
@@ -54,6 +59,7 @@ class CalcAgent:
 
     async def invoke(self, query: str):
         """質問に対して回答を生成し、使用したツール情報も返す"""
+        # Open both MCP server sessions while solving one query.
         with self.addsub_mcp_server, self.muldiv_mcp_server:
             # 各MCPクライアントから利用可能なツールを取得
             addsub_mcp_tools = self.addsub_mcp_server.list_tools_sync()
@@ -62,11 +68,13 @@ class CalcAgent:
 
             # 全てのツールを組み合わせてエージェントを作成・実行
             agent = self.create_agent(tools=addsub_mcp_tools + muldiv_mcp_tools)
+            # Response object contains message and tool trace metrics.
             response = agent(query)
             return response, addsub_mcp_tools, muldiv_mcp_tools
         
 def extract_tool_results(data):
     """エージェント実行データからツール使用結果を抽出"""
+    # Walk trace cycles and normalize tool call/result pairs.
     results = []
     for cycle in data.get("traces", []):
         tools = collect_tools(cycle)
@@ -158,6 +166,7 @@ async def eval_mcp_use(input, output, mcp_servers, call_tool_results):
     # MCPの使用状況を評価
     mcp_use_metrics = MCPUseMetric(threshold=0.8, model=deepeval_model, include_reason=True)
     evaluate(test_cases=[test_case], metrics=[mcp_use_metrics])
+    # Close evaluator model to release network/session resources.
     await deepeval_model.close()
 
 def evaluateAgent():

@@ -1,6 +1,9 @@
 import boto3
 import json
 
+# This script creates and configures an IAM role used by the research Lambda.
+# It is intended for one-time bootstrap of IAM resources.
+
 # AWSクライアント初期化
 iam = boto3.client('iam')
 sts = boto3.client('sts')
@@ -46,6 +49,7 @@ execution_policy = {
 }
 
 # ロール作成
+# Create the role with a trust policy that allows Lambda service to assume it.
 role = iam.create_role(
     RoleName=ROLE_NAME,
     AssumeRolePolicyDocument=json.dumps(trust_policy),
@@ -53,6 +57,7 @@ role = iam.create_role(
 )
 
 # ポリシーアタッチ
+# Attach runtime permissions (logs + Bedrock invoke) as an inline policy.
 iam.put_role_policy(
     RoleName=ROLE_NAME,
     PolicyName=f'{ROLE_NAME}-Policy',

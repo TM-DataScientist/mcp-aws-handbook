@@ -3,6 +3,7 @@ import nest_asyncio
 import streamlit as st
 from agent_with_kb import RagAgent # ここを変更
 
+# This UI is identical to app.py, but uses the KB-enabled agent backend.
 nest_asyncio.apply()
 
 # Streamlitのページ設定
@@ -20,6 +21,7 @@ if "agent" not in st.session_state:
     st.session_state.agent = RagAgent()
 
 def print_message(message):
+    # Render plain text plus tool call details for observability.
     with st.chat_message(message["role"]):
         for content in message["content"]:
             if "text" in content:
@@ -32,6 +34,7 @@ def print_message(message):
                     st.write(content["toolResult"])
 
 async def main():
+    # Restore chat transcript from session state before accepting new input.
     # 会話履歴の表示
     for message in st.session_state.messages:
         print_message(message)
@@ -45,8 +48,10 @@ async def main():
 
         try:
             with st.spinner("回答を生成中..."):
+                # Stream model output and intermediate tool activity to the UI.
                 async for message in st.session_state.agent.stream(st.session_state.messages):
                     print_message(message)
+                    # Save streamed events so they remain visible after rerun.
                     st.session_state.messages.append(message)
 
         except Exception as e:

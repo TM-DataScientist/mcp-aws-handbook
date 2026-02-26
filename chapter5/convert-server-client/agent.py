@@ -7,11 +7,17 @@ from strands.models import BedrockModel
 from strands.tools.mcp import MCPClient
 from typing import List, Dict
 
+# This client orchestrates two MCP sources:
+# - AgentCore runtime tools via IAM-authenticated streamable HTTP
+# - AWS MCP tools via stdio proxy
+# and lets one Strands agent use both sets in a single run.
+
 # AgentCore Runtime ARN
 AGENTCORE_RUNTIME_ARN = "<AgentCore RuntimeのAgent ARN>"
 
 def create_stdio_mcp_client(command: str, args: List[str], env: Dict) -> MCPClient:
     """Stdio MCPクライアントを作成する関数"""
+    # Used for local process transport (`uvx mcp-proxy-for-aws ...`).
     stdio_mcp_client = MCPClient(
         lambda: stdio_client(StdioServerParameters(command=command, args=args, env=env)),
         startup_timeout=60
@@ -24,6 +30,7 @@ def create_aws_iam_streamable_http_mcp_client(
     aws_service: str = "bedrock-agentcore"
 ) -> MCPClient:
     """MCP Proxy for AWSを利用したMCPクライアントを作成する関数"""
+    # Used for remote AgentCore runtime endpoint with SigV4/IAM auth.
     streamable_http_mcp_client = MCPClient(
         lambda: aws_iam_streamablehttp_client(
             endpoint=url,
@@ -35,6 +42,7 @@ def create_aws_iam_streamable_http_mcp_client(
     return streamable_http_mcp_client
 
 def get_mcp_endpoint() -> str:
+    # Agent runtime ARN must be URL-encoded when embedded in REST path.
     encoded_arn = AGENTCORE_RUNTIME_ARN.replace(":", "%3A").replace("/", "%2F")
     return f"https://bedrock-agentcore.us-west-2.amazonaws.com/runtimes/{encoded_arn}/invocations?qualifier=DEFAULT"
 
@@ -43,6 +51,7 @@ DynamoDBのtech-reportテーブルから最新の技術レポートを取得し�
 完了後は変換したファイルを取得するURLをユーザーへ明示してください。
 """
 def main():
+    # Build both MCP connections first.
     mcp_endpoint = get_mcp_endpoint()
     gateway_server_client = create_aws_iam_streamable_http_mcp_client(mcp_endpoint)
     aws_mcp_client = create_stdio_mcp_client(
@@ -58,6 +67,7 @@ def main():
         }
     )
     with gateway_server_client, aws_mcp_client:
+        # Merge tools from both MCP providers into one tool list.
         tools = gateway_server_client.list_tools_sync()
         tools.extend(aws_mcp_client.list_tools_sync())
         # Bedrockのモデルを定義
@@ -67,6 +77,7 @@ def main():
             model=model,
             tools=tools
         )
+        # Single prompt triggers tool use and conversion workflow.
         agent(prompt)
 
 if __name__ == "__main__":

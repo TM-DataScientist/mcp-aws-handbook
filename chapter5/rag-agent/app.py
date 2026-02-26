@@ -3,6 +3,8 @@ import nest_asyncio
 import streamlit as st
 from agent import RagAgent
 
+# Streamlit runs an event loop already in some environments.
+# `nest_asyncio` allows this script to call `asyncio.run(...)` safely.
 nest_asyncio.apply()
 
 # Streamlitのページ設定
@@ -20,6 +22,7 @@ if "agent" not in st.session_state:
     st.session_state.agent = RagAgent()
 
 def print_message(message):
+    # Render one chat message and expose tool traces in expandable sections.
     with st.chat_message(message["role"]):
         for content in message["content"]:
             if "text" in content:
@@ -32,6 +35,7 @@ def print_message(message):
                     st.write(content["toolResult"])
 
 async def main():
+    # Repaint all stored messages on each Streamlit rerun.
     # 会話履歴の表示
     for message in st.session_state.messages:
         print_message(message)
@@ -45,8 +49,10 @@ async def main():
 
         try:
             with st.spinner("回答を生成中..."):
+                # Stream responses token-by-token/event-by-event from backend agent.
                 async for message in st.session_state.agent.stream(st.session_state.messages):
                     print_message(message)
+                    # Persist assistant/tool events so they survive Streamlit reruns.
                     st.session_state.messages.append(message)
 
         except Exception as e:

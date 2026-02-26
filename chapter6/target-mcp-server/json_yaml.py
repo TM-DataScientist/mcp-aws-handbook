@@ -2,6 +2,11 @@ import yaml
 from typing import Dict, List, Any
 from mcp.server.fastmcp import FastMCP
 
+# Utility MCP server that exposes two conversion tools:
+# - json_to_yaml
+# - yaml_to_json
+# The conversion contract intentionally uses `List[Dict[str, Any]]`.
+
 # MCPサーバー初期化
 mcp = FastMCP("JsonYamlConverter", host="0.0.0.0", stateless_http=True)
 
@@ -9,6 +14,7 @@ mcp = FastMCP("JsonYamlConverter", host="0.0.0.0", stateless_http=True)
 def json_to_yaml(json_list: List[Dict[str, Any]]) -> str:
     """JSONリストをYAML文字列に変換"""
     try:
+        # Validate input shape early to return a predictable empty value on error.
         if not isinstance(json_list, list):
             print("❌ Error: 入力はリスト形式である必要があります")
             return ""
@@ -28,6 +34,7 @@ def json_to_yaml(json_list: List[Dict[str, Any]]) -> str:
 def yaml_to_json(yaml_string: str) -> List[Dict[str, Any]]:
     """YAML文字列をJSONリストに変換"""
     try:
+        # Parse YAML safely (no arbitrary object construction).
         data = yaml.safe_load(yaml_string)
         if isinstance(data, list):
             # リスト内の各要素が辞書であることを確認
@@ -47,4 +54,5 @@ def yaml_to_json(yaml_string: str) -> List[Dict[str, Any]]:
         return []
 
 if __name__ == "__main__":
+    # Expose tool endpoints through HTTP-compatible MCP transport.
     mcp.run(transport="streamable-http")

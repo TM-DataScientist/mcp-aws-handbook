@@ -7,6 +7,10 @@ from typing import Dict, Any
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
+# Pipeline summary:
+# user text -> Bedrock prompt conversion (Marp markdown) -> marp CLI -> pptx
+# -> S3 upload -> presigned URL response.
+
 # MCPサーバーの初期化
 mcp = FastMCP("ConvertServer", host="0.0.0.0", stateless_http=True)
 
@@ -32,6 +36,8 @@ paginate: true
 """
 def _convert_to_marp_format(text: str = Field(description="Marpフォーマットに変換するテキスト")) -> str:
     """入力テキストをMarpフォーマットに変換する"""
+    # This function is intentionally synchronous because Bedrock converse call
+    # is blocking and returns the full converted markdown in one response.
     # AWSセッションの作成（デフォルトプロファイルを使用）
     session = boto3.Session()
     client = session.client("bedrock-runtime")
@@ -53,6 +59,7 @@ def _convert_to_marp_format(text: str = Field(description="Marpフォーマッ�
 MARP_PATH = "marp"  # Marpコマンドのパス
 async def _process_marp(input_file_path: str, output_file_path: str) -> Dict[str, Any]:
     """Marpコマンドを実行してMarkdownファイルをpptxに変換する。"""
+    # marp CLI is executed as a child process to keep this server non-blocking.
     # Marpプロセスを非同期で実行
     process = await asyncio.create_subprocess_exec(
         MARP_PATH,
@@ -80,6 +87,8 @@ async def _process_marp(input_file_path: str, output_file_path: str) -> Dict[str
 
 def _upload_to_s3(file_name: str, bucket_name: str, key: str) -> str:
     """ファイルをS3にアップロードし、署名付きURLを生成する。"""
+    # The returned presigned URL is used by clients to download without
+    # exposing bucket objects publicly.
     # AWSセッションの作成
     session = boto3.Session()
     client = session.client("s3")
@@ -122,16 +131,20 @@ async def convert_to_pptx(text: str = Field(description="pptxに変換するテ�
     # タイムスタンプ付きの出力ファイル名を生成
     output_file_path = datetime.now().strftime("%Y%m%d_%H%M%S") + ".pptx"
    
+    # Step 1: call Bedrock to generate valid Marp markdown from free-form text.
     # テキストをMarp形式に変換
     marp_text = _convert_to_marp_format(text)
    
+    # Step 2: persist markdown so marp CLI can read it as an input file.
     # Marp形式のテキストを一時ファイルに保存 
     with open(os.path.join(TEMP_DIR_PATH, TEMP_FILE_PATH), "w", encoding="utf-8") as f:
         f.write(marp_text)
    
+    # Step 3: run marp CLI and generate the final editable pptx file.
     # Marpでpptxファイルを生成
     await _process_marp(os.path.join(TEMP_DIR_PATH, TEMP_FILE_PATH), os.path.join(TEMP_DIR_PATH, output_file_path))
    
+    # Step 4/5: upload and return a presigned URL so caller can download.
     # 生成されたファイルをS3にアップロードし、URLを取得
     url = _upload_to_s3(os.path.join(TEMP_DIR_PATH, output_file_path), BUCKET, output_file_path)
    

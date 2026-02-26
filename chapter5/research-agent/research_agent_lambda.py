@@ -6,12 +6,17 @@ from strands import Agent
 from strands.models import BedrockModel
 from strands.tools.mcp.mcp_client import MCPClient
 
+# Lambda-friendly variant of the research agent.
+# The core behavior matches `research_agent.py`, with an additional
+# `lambda_handler` entrypoint for Step Functions / EventBridge integration.
+
 # タイムアウト時間
 STARTUP_TIMEOUT = 90
 
 
 def create_stdio_mcp_client(command: str, args: List[str], env: Dict) -> MCPClient:
     """stdio MCPクライアントを作成"""
+    # Standard process-based MCP client (for Sequential Thinking server).
     return MCPClient(
         lambda: stdio_client(
             StdioServerParameters(command=command, args=args, env=env)
@@ -22,6 +27,7 @@ def create_stdio_mcp_client(command: str, args: List[str], env: Dict) -> MCPClie
 
 def create_streamable_http_mcp_client(url: str) -> MCPClient:
     """Streamable HTTP MCPクライアントを作成"""
+    # HTTP transport MCP client (for Tavily-hosted endpoint).
     return MCPClient(
         lambda: streamable_http_client(url),
         startup_timeout=STARTUP_TIMEOUT
@@ -44,6 +50,7 @@ class ResearchAgent:
   - 参考にしたサイトのリンクを必ず記載してください
 """
     def __init__(self):
+        # Fail fast if Tavily credential is missing.
         self.tavily_api_key = os.getenv("TAVILY_API_KEY")
         if not self.tavily_api_key:
             raise ValueError("TAVILY_API_KEY環境変数が設定されていません")
@@ -63,6 +70,7 @@ class ResearchAgent:
         """Strands Agentを作成"""
         # Bedrockのモデルを定義
         model = BedrockModel(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0")
+        # Prompt + tool injection happen here in one place.
         return Agent(
             model=model,
             system_prompt=self.SYSTEM_PROMPT,
@@ -81,6 +89,7 @@ class ResearchAgent:
 
                 # エージェントを作成してレポート生成を開始
                 agent = self.create_agent(tools)
+                # Execute query against Bedrock model with MCP tool-calling enabled.
                 content = agent(query)
 
 
@@ -96,10 +105,13 @@ if __name__ == "__main__":
     agent.generate_report(date)
 
 def lambda_handler(event, context):
+    # Lambda input contract: the event must include `date`.
     date = event.get("date")
     if not date:
         return {"error": "dateパラメータが必要です"}
 
+    # Recreate the agent per invocation to keep function stateless.
     agent = ResearchAgent()
     response = agent.generate_report(date)
+    # Stringify for simple JSON-serializable response payload.
     return str(response)
