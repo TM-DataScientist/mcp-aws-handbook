@@ -1,3 +1,8 @@
+"""
+Sampling に加えて Roots 機能を扱う MCP ホストのサンプル。
+サーバーへ作業ディレクトリ情報を渡し、出力先の基準パスとして使わせる。
+"""
+
 import asyncio
 from pathlib import Path
 
@@ -13,7 +18,10 @@ from strands.models import BedrockModel
 
 
 def with_mcp_client(func) -> ClientSession:
+    """Sampling と Roots のコールバック付きで MCP 接続を確立する。"""
+
     async def wrapper(*args, **kwargs):
+        # Roots サンプル用サーバーを起動する設定。
         server_params = StdioServerParameters(
             command="uv",
             args=[
@@ -26,6 +34,7 @@ def with_mcp_client(func) -> ClientSession:
         )
 
         async with stdio_client(server_params) as (read, write):
+            # sampling/list_roots の 2 種類のリクエストを host 側で受ける。
             async with ClientSession(
                 read,
                 write,
@@ -44,6 +53,9 @@ async def handle_sampling_callback(
     context: RequestContext,
     request_params: types.CreateMessageRequestParams,
 ) -> types.CreateMessageResult:
+    """Sampling 要求を受けて Bedrock で応答文を生成する。"""
+
+    # 受信パラメーターを可視化して動作確認しやすくする。
     content = f"[cyan]System Prompt:[/cyan] {request_params.systemPrompt}\n"
     content += f"[cyan]Temperature:[/cyan] {request_params.temperature}\n"
     content += f"[cyan]Max Tokens:[/cyan] {request_params.maxTokens}\n"
@@ -54,6 +66,7 @@ async def handle_sampling_callback(
     send_contents = [{"text": msg.content.text} for msg in request_params.messages]
     # list[ContentBlock]型に変換 [{"text: "LLMに送信する内容"}...] の形式
 
+    # 生成条件はサーバー側が渡した値をそのまま反映する。
     model_id = "us.amazon.nova-2-lite-v1:0"
 
     model = BedrockModel(
@@ -71,6 +84,7 @@ async def handle_sampling_callback(
 
     response = agent(send_contents)
 
+    # 生成結果を MCP の CreateMessageResult として返却する。
     return types.CreateMessageResult(
         role="assistant",
         content=types.TextContent(
@@ -85,6 +99,9 @@ async def handle_sampling_callback(
 async def handle_roots_callback(
     context: RequestContext,
 ) -> types.ListRootsResult:
+    """サーバーが利用できる作業ルートを 1 件返す。"""
+
+    # 現在の作業ディレクトリを file URI 形式で渡す。
     work_dir = Path.cwd().as_uri()
 
     print(Panel(work_dir, title="Roots"))
@@ -101,8 +118,11 @@ async def handle_roots_callback(
 
 @with_mcp_client
 async def main(session: ClientSession):
+    """translate ツールの入力を集め、結果を表示する。"""
+
     tool_name = "translate"
 
+    # サーバー側ツール情報を取得する。
     tools = await session.list_tools()
 
     translate_tool = next(
@@ -115,11 +135,13 @@ async def main(session: ClientSession):
 
     print(Panel(content, title="Tool info"))
 
+    # スキーマ定義から入力欄を生成して引数辞書を構築する。
     params = {}
     for param_name, param_info in translate_tool.inputSchema["properties"].items():
         value = Prompt.ask(f"[yellow]{param_name}[/yellow]")
         params[param_name] = value
 
+    # ツール実行結果をそのまま表示する。
     result = await session.call_tool(translate_tool.name, params)
     print(Panel(result.content[0].text, title="Tool Result"))
 

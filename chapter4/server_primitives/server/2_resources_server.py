@@ -1,3 +1,8 @@
+"""
+Prompt と Resource を提供する MCP サーバーのサンプル。
+AWS サービス説明テキストをファイルリソースとして公開する。
+"""
+
 from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP(name="MCP Server Example")
@@ -5,12 +10,17 @@ mcp = FastMCP(name="MCP Server Example")
 
 @mcp.prompt(title="Translation")
 def translation(lang: str) -> str:
+    """翻訳用の指示文テンプレートを返す Prompt。"""
+
     print("translation")
     return f"以下の文章を{lang}に訳してください。"
 
 
 @mcp.resource("file://bedrock.txt", name="Bedrock")
 def get_bedrock() -> str:
+    """Bedrock の説明テキストを Resource として返す。"""
+
+    # resources 配下の説明ファイルを読み込んで返却する。
     with open(
         "resources/bedrock.txt",
         mode="rt",
@@ -22,6 +32,8 @@ def get_bedrock() -> str:
 
 @mcp.resource("file://s3.txt", name="S3")
 def get_s3() -> str:
+    """S3 の説明テキストを Resource として返す。"""
+
     with open(
         "resources/s3.txt",
         mode="rt",
@@ -33,6 +45,8 @@ def get_s3() -> str:
 
 @mcp.resource("file://ec2.txt", name="EC2")
 def get_ec2() -> str:
+    """EC2 の説明テキストを Resource として返す。"""
+
     with open(
         "resources/ec2.txt",
         mode="rt",

@@ -1,3 +1,8 @@
+"""
+Sampling 機能を持つ MCP ホストのサンプル。
+サーバーからの Sampling 要求を受け、Bedrock モデルで応答を生成する。
+"""
+
 import asyncio
 
 from mcp import ClientSession, StdioServerParameters, types
@@ -11,7 +16,10 @@ from strands.models import BedrockModel
 
 
 def with_mcp_client(func) -> ClientSession:
+    """MCP サーバー接続の生成と初期化を共通化するデコレーター。"""
+
     async def wrapper(*args, **kwargs):
+        # 別プロセスで起動する MCP サーバーの実行パラメーター。
         server_params = StdioServerParameters(
             command="uv",
             args=[
@@ -24,6 +32,7 @@ def with_mcp_client(func) -> ClientSession:
         )
 
         async with stdio_client(server_params) as (read, write):
+            # sampling_callback を登録することで、サーバーからの推論要求を host 側で処理できる。
             async with ClientSession(
                 read,
                 write,
@@ -41,6 +50,9 @@ async def handle_sampling_callback(
     context: RequestContext,
     request_params: types.CreateMessageRequestParams,
 ) -> types.CreateMessageResult:
+    """サーバーから渡された Sampling 要求を Bedrock で実行して返す。"""
+
+    # デバッグしやすいように、受信した推論条件をパネルで表示する。
     content = f"[cyan]System Prompt:[/cyan] {request_params.systemPrompt}\n"
     content += f"[cyan]Temperature:[/cyan] {request_params.temperature}\n"
     content += f"[cyan]Max Tokens:[/cyan] {request_params.maxTokens}\n"
@@ -51,6 +63,7 @@ async def handle_sampling_callback(
     send_contents = [{"text": msg.content.text} for msg in request_params.messages]
     # list[ContentBlock]型に変換 [{"text: "LLMに送信する内容"}...] の形式
 
+    # サンプルでは Nova Lite を固定利用する。
     model_id = "us.amazon.nova-2-lite-v1:0"
 
     model = BedrockModel(
@@ -68,6 +81,7 @@ async def handle_sampling_callback(
 
     response = agent(send_contents)
 
+    # MCP が要求する型に詰め替えてサーバーへ返却する。
     return types.CreateMessageResult(
         role="assistant",
         content=types.TextContent(
@@ -81,8 +95,11 @@ async def handle_sampling_callback(
 
 @with_mcp_client
 async def main(session: ClientSession):
+    """translate ツールの情報表示と呼び出しを行うエントリーポイント。"""
+
     tool_name = "translate"
 
+    # サーバー公開ツール一覧から translate を検索する。
     tools = await session.list_tools()
 
     translate_tool = next(
@@ -95,11 +112,13 @@ async def main(session: ClientSession):
 
     print(Panel(content, title="Tool info"))
 
+    # inputSchema を使って必要パラメーターを動的に入力させる。
     params = {}
     for param_name, param_info in translate_tool.inputSchema["properties"].items():
         value = Prompt.ask(f"[yellow]{param_name}[/yellow]")
         params[param_name] = value
 
+    # 収集した引数でツールを実行する。
     result = await session.call_tool(translate_tool.name, params)
     print(Panel(result.content[0].text, title="Tool Result"))
 

@@ -1,3 +1,8 @@
+"""
+MCP Prompts を使う Streamlit ホストのサンプル。
+サイドバーでプロンプトを選び、生成文をチャット入力に反映して会話する。
+"""
+
 import asyncio
 
 import streamlit as st
@@ -10,7 +15,10 @@ from strands.types.content import ContentBlock, Message
 
 # デコレータ関数を定義
 def with_mcp_client(func) -> ClientSession:
+    """MCP サーバー接続の開始・初期化・終了を共通化する。"""
+
     async def wrapper(*args, **kwargs):
+        # prompts サンプル用サーバーを stdio 経由で起動する。
         server_params = StdioServerParameters(
             command="uv",
             args=[
@@ -24,6 +32,7 @@ def with_mcp_client(func) -> ClientSession:
 
         async with stdio_client(server_params) as (read, write):
             async with ClientSession(read, write) as session:
+                # MCP セッション開始時のハンドシェイクを行う。
                 await session.initialize()
 
                 return await func(session, *args, **kwargs)
@@ -33,8 +42,11 @@ def with_mcp_client(func) -> ClientSession:
 
 @with_mcp_client
 async def main(session: ClientSession):
+    """Prompt 一覧の取得とチャット実行を行う UI 本体。"""
+
     st.title("Chat with MCP")
 
+    # サイドバーで prompt を選び、引数を入力して雛形文を作る。
     with st.sidebar:
         st.subheader("Prompts")
         list_prompts = await session.list_prompts()
@@ -62,6 +74,7 @@ async def main(session: ClientSession):
             result = await session.get_prompt(
                 select_prompt_name, arguments=args
             )  # MCPサーバーからPrompts情報を取得
+            # 取得した prompt 本文を次回のチャット入力値としてセットする。
             st.session_state.chat_input = result.messages[0].content.text
 
     if input := st.chat_input(
@@ -69,6 +82,7 @@ async def main(session: ClientSession):
     ):  # keyの指定を追加。該当のkeyで保持された値がセットされる
         user_content: list[ContentBlock] = []
 
+        # ユーザー発話を Strands メッセージ形式へ変換する。
         user_content.append({"text": input})
         user_message: Message = {"role": "user", "content": user_content}
 
@@ -81,6 +95,7 @@ async def main(session: ClientSession):
             region_name="us-west-2",
         )
 
+        # 今回は MCP ツールを使わず、LLM 応答のみ実行する。
         agent = Agent(model=model, callback_handler=None)
 
         agent_stream = agent.stream_async([user_message])

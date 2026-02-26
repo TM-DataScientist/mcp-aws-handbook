@@ -1,3 +1,8 @@
+"""
+MCP Prompts / Tools を使う Streamlit ホストのサンプル。
+MCPClient から取得したツールを Strands Agent に渡して実行可能にする。
+"""
+
 import asyncio
 
 import streamlit as st
@@ -16,7 +21,10 @@ from strands.types.content import ContentBlock, Message
 
 # デコレータ関数を定義
 def with_mcp_client(func) -> ClientSession:
+    """MCPClient のライフサイクル管理をデコレーター化する。"""
+
     async def wrapper(*args, **kwargs):
+        # tools を提供するサーバーを stdio で起動する設定。
         server_params = StdioServerParameters(
             command="uv",
             args=[
@@ -30,6 +38,7 @@ def with_mcp_client(func) -> ClientSession:
 
         mcp_client = MCPClient(lambda: stdio_client(server_params))
 
+        # context manager 内で prompt/tool API を同期メソッドとして扱える。
         with mcp_client:
             return await func(mcp_client, *args, **kwargs)
 
@@ -38,6 +47,8 @@ def with_mcp_client(func) -> ClientSession:
 
 @with_mcp_client
 async def main(mcp_client: MCPClient):
+    """Prompt と Tool を選択して Strands Agent へ渡す UI。"""
+
     st.title("Chat with MCP")
 
     # Prompts
@@ -70,8 +81,10 @@ async def main(mcp_client: MCPClient):
             result: GetPromptResult = mcp_client.get_prompt_sync(
                 select_prompt_name, args=args
             )  # MCP SDKを使用するときと異なる方法で指定
+            # prompt 本文を chat_input に流し込んで再利用する。
             st.session_state.chat_input = result.messages[0].content.text
 
+    # 有効化する tool をチェックボックスで選択する。
     with st.sidebar:
         st.divider()
         st.subheader("Tools")
@@ -87,6 +100,7 @@ async def main(mcp_client: MCPClient):
     ):  # keyの指定を追加。該当のkeyで保持された値がセットされる
         user_content: list[ContentBlock] = []
 
+        # ユーザー入力をエージェント向けメッセージへ変換する。
         user_content.append({"text": input})
         user_message: Message = {"role": "user", "content": user_content}
 
@@ -99,6 +113,7 @@ async def main(mcp_client: MCPClient):
             region_name="us-west-2",
         )
 
+        # チェックされた MCP ツールだけをエージェントへ注入する。
         agent = Agent(
             model=model,
             tools=select_tool,  # ここを追加

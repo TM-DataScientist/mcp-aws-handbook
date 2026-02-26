@@ -1,3 +1,8 @@
+"""
+MCP Prompts と Resources を使う Streamlit ホストのサンプル。
+選択したリソース本文をユーザー入力へ追加し、回答の文脈として利用する。
+"""
+
 import asyncio
 
 import streamlit as st
@@ -11,7 +16,10 @@ from strands.types.content import ContentBlock, Message
 
 # デコレータ関数を定義
 def with_mcp_client(func) -> ClientSession:
+    """Resources サンプル用 MCP サーバー接続を共通化する。"""
+
     async def wrapper(*args, **kwargs):
+        # resources を提供するサーバーを stdio で起動する。
         server_params = StdioServerParameters(
             command="uv",
             args=[
@@ -25,6 +33,7 @@ def with_mcp_client(func) -> ClientSession:
 
         async with stdio_client(server_params) as (read, write):
             async with ClientSession(read, write) as session:
+                # セッション初期化で prompt/resource API を利用可能にする。
                 await session.initialize()
 
                 return await func(session, *args, **kwargs)
@@ -34,8 +43,11 @@ def with_mcp_client(func) -> ClientSession:
 
 @with_mcp_client
 async def main(session: ClientSession):
+    """Prompt と Resource の選択を受けてチャットを実行する。"""
+
     st.title("Chat with MCP")
 
+    # Prompts の選択・引数入力・チャット入力への反映。
     with st.sidebar:
         st.subheader("Prompts")
         list_prompts = await session.list_prompts()
@@ -63,9 +75,10 @@ async def main(session: ClientSession):
             result = await session.get_prompt(
                 select_prompt_name, arguments=args
             )  # MCPサーバーからPrompts情報を取得
+            # 選択 prompt の本文を chat_input 初期値として設定する。
             st.session_state.chat_input = result.messages[0].content.text
 
-    # Resources
+    # Resources の選択。チェックした項目だけ会話コンテキストへ注入する。
     with st.sidebar:
         st.divider()
         st.subheader("Resources")
@@ -82,9 +95,11 @@ async def main(session: ClientSession):
     ):  # keyの指定を追加。該当のkeyで保持された値がセットされる
         user_content: list[ContentBlock] = []
 
+        # まずユーザーの自由入力を追加する。
         user_content.append({"text": input})
         user_message: Message = {"role": "user", "content": user_content}
 
+        # 選択リソース本文を読み出し、同一メッセージ内に追記する。
         for resource in select_resource:
             if resource:
                 result = await session.read_resource(uri=resource.uri)
@@ -101,6 +116,7 @@ async def main(session: ClientSession):
             region_name="us-west-2",
         )
 
+        # リソースを加えた入力をもとに回答を生成する。
         agent = Agent(model=model, callback_handler=None)
 
         agent_stream = agent.stream_async([user_message])
