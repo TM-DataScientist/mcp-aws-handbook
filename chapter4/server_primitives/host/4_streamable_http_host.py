@@ -4,11 +4,14 @@ streamable-http 接続で MCP サーバーと連携する Streamlit ホストの
 """
 
 # 処理の流れ:
-# 1. streamable-http エンドポイントへ接続し、HTTP 経由で Prompt / Tool 一覧を取得する。
-# 2. 選択した Prompt を chat_input に反映し、選択した Tool を Agent へ注入する。
-# 3. HTTP 接続先の MCP サーバーを利用しながら、Streamlit 上で応答をストリーム表示する。
+# 1. リポジトリルートの .env を読み込み、接続先 URL と Bedrock 用の環境変数を host プロセスへ反映する。
+# 2. streamable-http エンドポイントへ接続し、HTTP 経由で Prompt / Tool 一覧を取得する。
+# 3. 選択した Prompt を chat_input に反映し、選択した Tool を Agent へ注入する。
+# 4. HTTP 接続先の MCP サーバーを利用しながら、Streamlit 上で応答をストリーム表示する。
 
 import asyncio
+import os
+from pathlib import Path
 
 import streamlit as st
 from mcp import (
@@ -22,6 +25,33 @@ from strands.models import BedrockModel
 from strands.tools.mcp import MCPAgentTool, MCPClient
 from strands.types.content import ContentBlock, Message
 
+ROOT_DIR = Path(__file__).resolve().parents[3]
+
+DEFAULT_MODEL_ID = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+DEFAULT_REGION = "us-west-2"
+DEFAULT_MCP_SERVER_URL = "http://localhost:8000/mcp"
+
+
+def load_dotenv_file(env_path: Path) -> None:
+    """.env にある KEY=VALUE 形式の設定を環境変数へ読み込む。"""
+    if not env_path.exists():
+        return
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        # 空行・コメント行・不正形式の行は設定値として扱わない。
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        # 最初の = だけで分割し、値側に = を含むケースも壊さない。
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        os.environ.setdefault(key, value)
+
+
+load_dotenv_file(ROOT_DIR / ".env")
+
 
 def with_mcp_client(func) -> ClientSession:
     """streamable-http 経由で MCPClient を初期化するデコレーター。"""
@@ -29,7 +59,9 @@ def with_mcp_client(func) -> ClientSession:
     async def wrapper(*args, **kwargs):
         # HTTP エンドポイントの MCP サーバーに接続する。
         mcp_client = MCPClient(
-            lambda: streamable_http_client(url="http://localhost:8000/mcp")
+            lambda: streamable_http_client(
+                url=os.getenv("MCP_SERVER_URL", DEFAULT_MCP_SERVER_URL)
+            )
         )  # streamable_http_clientからMCPClientを生成するよう変更
         # context manager で接続開始/終了を自動化する。
         with mcp_client:
@@ -102,8 +134,11 @@ async def main(mcp_client: MCPClient):
                 st.write(content["text"])
 
         model = BedrockModel(
-            model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
-            region_name="us-west-2",
+            model_id=os.getenv("BEDROCK_MODEL_ID", DEFAULT_MODEL_ID),
+            region_name=os.getenv(
+                "AWS_REGION",
+                os.getenv("AWS_DEFAULT_REGION", DEFAULT_REGION),
+            ),
         )
 
         # 選択された MCP ツールを有効化して回答を生成する。

@@ -9,11 +9,24 @@ Sampling と Roots を使う MCP サーバーのサンプル。
 # 3. 同名ファイルがなければ保存し、結果メッセージと本文を host へ返す。
 
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.types import SamplingMessage, TextContent
 
 mcp = FastMCP(name="Client features sample")
+
+
+def file_uri_to_path(file_uri: str) -> Path:
+    """file:// URI を OS ローカルパスへ変換する。"""
+    parsed = urlparse(file_uri)
+    path = unquote(parsed.path)
+
+    # Windows の file:///C:/... は先頭に / が付くため落としてから Path 化する。
+    if path.startswith("/") and len(path) > 2 and path[2] == ":":
+        path = path[1:]
+
+    return Path(path)
 
 
 @mcp.tool()
@@ -47,7 +60,7 @@ async def translate(language: str, content: str, ctx: Context) -> dict:
 
     # デフォルトの出力ファイル名を決める。
     filename = "output.txt"
-    output_file = Path(roots.uri.path) / filename
+    output_file = file_uri_to_path(str(roots.uri)) / filename
 
     # 既存ファイルがなければ翻訳結果を書き込む。
     if output_file and not output_file.exists():

@@ -9,12 +9,25 @@ Sampling / Roots / Elicitation を使う MCP サーバーのサンプル。
 # 3. 受け取ったファイル名で保存し直し、最終的な保存結果を返却する。
 
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.types import SamplingMessage, TextContent
 from pydantic import BaseModel, Field
 
 mcp = FastMCP(name="Client features sample")
+
+
+def file_uri_to_path(file_uri: str) -> Path:
+    """file:// URI を OS ローカルパスへ変換する。"""
+    parsed = urlparse(file_uri)
+    path = unquote(parsed.path)
+
+    # Windows の file:///C:/... は先頭に / が付くため落としてから Path 化する。
+    if path.startswith("/") and len(path) > 2 and path[2] == ":":
+        path = path[1:]
+
+    return Path(path)
 
 
 class RenameRequest(BaseModel):
@@ -54,7 +67,7 @@ async def translate(language: str, content: str, ctx: Context) -> dict:
 
     # まずは既定名 output.txt で保存を試みる。
     filename = "output.txt"
-    output_file = Path(roots.uri.path) / filename
+    output_file = file_uri_to_path(str(roots.uri)) / filename
 
     # 未作成ならそのまま保存して終了。
     if output_file and not output_file.exists():
@@ -76,7 +89,7 @@ async def translate(language: str, content: str, ctx: Context) -> dict:
         # ユーザーが受け入れて値を返した場合のみ再保存する。
         if elicit_result.action == "accept" and elicit_result.data:
             filename = elicit_result.data.filename
-            output_file = Path(roots.uri.path) / filename
+            output_file = file_uri_to_path(str(roots.uri)) / filename
 
             with open(output_file, mode="wt", encoding="utf-8") as f:
                 f.write(sampling_result.content.text)

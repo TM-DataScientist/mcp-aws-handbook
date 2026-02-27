@@ -4,11 +4,14 @@ MCPClient から取得したツールを Strands Agent に渡して実行可能�
 """
 
 # 処理の流れ:
-# 1. stdio で tools サーバーを起動し、Prompt と Tool の一覧を MCPClient で取得する。
-# 2. サイドバーで選択した Tool だけを Strands Agent に渡し、必要時に MCP 経由で実行させる。
-# 3. Prompt で作った入力文とユーザー発話を組み合わせ、チャット応答を画面へ表示する。
+# 1. リポジトリルートの .env を読み込み、Bedrock 用の環境変数を host プロセスへ反映する。
+# 2. stdio で tools サーバーを起動し、Prompt と Tool の一覧を MCPClient で取得する。
+# 3. サイドバーで選択した Tool だけを Strands Agent に渡し、必要時に MCP 経由で実行させる。
+# 4. Prompt で作った入力文とユーザー発話を組み合わせ、チャット応答を画面へ表示する。
 
 import asyncio
+import os
+from pathlib import Path
 
 import streamlit as st
 from mcp import (
@@ -23,22 +26,49 @@ from strands.models import BedrockModel
 from strands.tools.mcp import MCPAgentTool, MCPClient
 from strands.types.content import ContentBlock, Message
 
+ROOT_DIR = Path(__file__).resolve().parents[3]
+SERVER_DIR = Path(__file__).resolve().parent.parent / "server"
+
+DEFAULT_MODEL_ID = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+DEFAULT_REGION = "us-west-2"
+
+
+def load_dotenv_file(env_path: Path) -> None:
+    """.env にある KEY=VALUE 形式の設定を環境変数へ読み込む。"""
+    if not env_path.exists():
+        return
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        # 空行・コメント行・不正形式の行は設定値として扱わない。
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        # 最初の = だけで分割し、値側に = を含むケースも壊さない。
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        os.environ.setdefault(key, value)
+
+
+load_dotenv_file(ROOT_DIR / ".env")
+
 
 # デコレータ関数を定義
 def with_mcp_client(func) -> ClientSession:
     """MCPClient のライフサイクル管理をデコレーター化する。"""
 
     async def wrapper(*args, **kwargs):
-        # tools を提供するサーバーを stdio で起動する設定。
+        # .env から読み込んだ環境変数も含めて server 側へ引き継ぐ。
         server_params = StdioServerParameters(
             command="uv",
             args=[
                 "run",
                 "--directory",
-                "../server",
+                str(SERVER_DIR),
                 "3_tools_server.py",
             ],
-            env={},
+            env=dict(os.environ),
         )
 
         mcp_client = MCPClient(lambda: stdio_client(server_params))
@@ -114,8 +144,11 @@ async def main(mcp_client: MCPClient):
                 st.write(content["text"])
 
         model = BedrockModel(
-            model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
-            region_name="us-west-2",
+            model_id=os.getenv("BEDROCK_MODEL_ID", DEFAULT_MODEL_ID),
+            region_name=os.getenv(
+                "AWS_REGION",
+                os.getenv("AWS_DEFAULT_REGION", DEFAULT_REGION),
+            ),
         )
 
         # チェックされた MCP ツールだけをエージェントへ注入する。

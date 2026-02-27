@@ -9,6 +9,8 @@ Sampling 機能を持つ MCP ホストのサンプル。
 # 3. translate ツールの入力を集めて呼び出し、翻訳結果をコンソールへ表示する。
 
 import asyncio
+import os
+from pathlib import Path
 
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.stdio import stdio_client
@@ -19,18 +21,45 @@ from rich.prompt import Prompt
 from strands.agent import Agent
 from strands.models import BedrockModel
 
+ROOT_DIR = Path(__file__).resolve().parents[3]
+SERVER_DIR = Path(__file__).resolve().parent.parent / "server"
+
+DEFAULT_MODEL_ID = "us.amazon.nova-2-lite-v1:0"
+DEFAULT_REGION = "us-west-2"
+
+
+def load_dotenv_file(env_path: Path) -> None:
+    """.env にある KEY=VALUE 形式の設定を環境変数へ読み込む。"""
+    if not env_path.exists():
+        return
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        # 空行・コメント行・不正形式の行は設定値として扱わない。
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        # 最初の = だけで分割し、値側に = を含むケースも壊さない。
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        os.environ.setdefault(key, value)
+
+
+load_dotenv_file(ROOT_DIR / ".env")
+
 
 def with_mcp_client(func) -> ClientSession:
     """MCP サーバー接続の生成と初期化を共通化するデコレーター。"""
 
     async def wrapper(*args, **kwargs):
-        # 別プロセスで起動する MCP サーバーの実行パラメーター。
+        # スクリプト位置を基準に server ディレクトリを解決し、実行場所に依存しないようにする。
         server_params = StdioServerParameters(
             command="uv",
             args=[
                 "run",
                 "--directory",
-                "../server",
+                str(SERVER_DIR),
                 "1_sampling_server.py",
             ],
             env={},
@@ -68,12 +97,15 @@ async def handle_sampling_callback(
     send_contents = [{"text": msg.content.text} for msg in request_params.messages]
     # list[ContentBlock]型に変換 [{"text: "LLMに送信する内容"}...] の形式
 
-    # サンプルでは Nova Lite を固定利用する。
-    model_id = "us.amazon.nova-2-lite-v1:0"
+    # .env があればモデル ID とリージョンをそこから取得して使う。
+    model_id = os.getenv("BEDROCK_MODEL_ID", DEFAULT_MODEL_ID)
 
     model = BedrockModel(
         model_id=model_id,
-        region_name="us-west-2",
+        region_name=os.getenv(
+            "AWS_REGION",
+            os.getenv("AWS_DEFAULT_REGION", DEFAULT_REGION),
+        ),
         max_tokens=request_params.maxTokens,
         temperature=request_params.temperature,
     )
@@ -106,7 +138,7 @@ async def main(session: ClientSession):
 
     # サーバー公開ツール一覧から translate を検索する。
     tools = await session.list_tools()
-
+    # tools.tools の中から、name == tool_name を満たす最初の要素を 1 件だけ取り出す
     translate_tool = next(
         (t for t in tools.tools if t.name == tool_name),
         None,
