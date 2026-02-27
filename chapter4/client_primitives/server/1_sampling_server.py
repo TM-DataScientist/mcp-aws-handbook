@@ -3,6 +3,11 @@ Sampling を使う MCP サーバーのサンプル。
 translate ツール内で host 側のモデル推論を呼び出して翻訳結果を作る。
 """
 
+# 処理の流れ:
+# 1. FastMCP に translate ツールを登録し、host から呼び出せる状態にする。
+# 2. translate 実行時は host 側へ Sampling を依頼し、翻訳本文の生成を委譲する。
+# 3. host が返した生成結果をツールの戻り値へ詰め替えて返却する。
+
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.types import SamplingMessage, TextContent
 

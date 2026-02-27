@@ -3,6 +3,11 @@ Sampling に加えて Roots 機能を扱う MCP ホストのサンプル。
 サーバーへ作業ディレクトリ情報を渡し、出力先の基準パスとして使わせる。
 """
 
+# 処理の流れ:
+# 1. Sampling と Roots の callback を登録した状態で MCP サーバーへ接続する。
+# 2. Sampling 要求は Bedrock で処理し、Roots 要求には現在の作業ディレクトリを返す。
+# 3. translate ツール実行時に、サーバーが出力先として使うルート情報も host 側から渡す。
+
 import asyncio
 from pathlib import Path
 

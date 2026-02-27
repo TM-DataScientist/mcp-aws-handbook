@@ -3,6 +3,11 @@ Sampling / Roots / Elicitation を使う MCP サーバーのサンプル。
 出力先ファイルが既にある場合、host に新しいファイル名を問い合わせる。
 """
 
+# 処理の流れ:
+# 1. Sampling で翻訳結果を生成し、Roots から保存先ディレクトリを取得する。
+# 2. 既定ファイル名が重複した場合は、Elicitation で host 側へ別名入力を依頼する。
+# 3. 受け取ったファイル名で保存し直し、最終的な保存結果を返却する。
+
 from pathlib import Path
 
 from mcp.server.fastmcp import Context, FastMCP

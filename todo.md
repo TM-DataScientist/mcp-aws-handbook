@@ -1,10 +1,5 @@
-# chapter4 コメント追記 TODO
+# chapter4 コメント整備計画
 
-- [x] 対象確認: `chapter4` 配下の `.py` スクリプトを列挙
-- [x] `client_primitives/host` の各スクリプトに詳細コメントを追加
-- [x] `client_primitives/server` の各スクリプトに詳細コメントを追加
-- [x] `server_primitives/host` の各スクリプトに詳細コメントを追加
-- [x] `server_primitives/server` の各スクリプトに詳細コメントを追加
-- [x] 構文チェック（`python -m compileall chapter4`）
-- [ ] 変更内容をコミット
-- [ ] `origin` へ push
+1. `chapter4` 配下の Python スクリプトを確認し、既存コメントと不足箇所を整理する
+2. 各スクリプトの主要処理ごとに、日本語で流れが追いやすいコメントを追加する
+3. 構文確認と差分確認を行い、変更内容をコミットしてプッシュする

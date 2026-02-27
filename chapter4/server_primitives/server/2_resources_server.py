@@ -3,6 +3,11 @@ Prompt と Resource を提供する MCP サーバーのサンプル。
 AWS サービス説明テキストをファイルリソースとして公開する。
 """
 
+# 処理の流れ:
+# 1. Prompt と Resource を FastMCP に登録し、host 側へ一覧提供できるようにする。
+# 2. Resource 関数では resources 配下のテキストファイルを読み込み、そのまま返す。
+# 3. host はここで返した本文を会話コンテキストへ差し込んで利用する。
+
 from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP(name="MCP Server Example")

@@ -3,6 +3,11 @@ Rich の基本表示を確認するサンプル。
 文字装飾・パネル表示・対話入力の最小例をまとめている。
 """
 
+# 処理の流れ:
+# 1. Rich の print / Panel / Prompt を順に呼び出し、端末表示の基本機能を確認する。
+# 2. 色や装飾タグがどのように反映されるかを、短い出力例で見比べる。
+# 3. 最後に Prompt.ask で入力を受け取り、対話表示の最小パターンを確認する。
+
 from rich import print
 from rich.panel import Panel
 from rich.prompt import Prompt

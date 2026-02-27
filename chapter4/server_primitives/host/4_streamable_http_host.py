@@ -3,6 +3,11 @@ streamable-http 接続で MCP サーバーと連携する Streamlit ホストの
 標準入出力の代わりに HTTP エンドポイント経由で Prompt/Tool を利用する。
 """
 
+# 処理の流れ:
+# 1. streamable-http エンドポイントへ接続し、HTTP 経由で Prompt / Tool 一覧を取得する。
+# 2. 選択した Prompt を chat_input に反映し、選択した Tool を Agent へ注入する。
+# 3. HTTP 接続先の MCP サーバーを利用しながら、Streamlit 上で応答をストリーム表示する。
+
 import asyncio
 
 import streamlit as st

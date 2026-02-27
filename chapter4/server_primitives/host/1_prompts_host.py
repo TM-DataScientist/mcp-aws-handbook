@@ -3,6 +3,11 @@ MCP Prompts を使う Streamlit ホストのサンプル。
 サイドバーでプロンプトを選び、生成文をチャット入力に反映して会話する。
 """
 
+# 処理の流れ:
+# 1. stdio で prompts サーバーを起動し、Prompt 一覧を Streamlit のサイドバーへ表示する。
+# 2. 選択した Prompt と引数から雛形文を取得し、chat_input の初期値として再利用する。
+# 3. ユーザーが送信した内容を Bedrock に渡し、応答をチャット欄へストリーム表示する。
+
 import asyncio
 
 import streamlit as st

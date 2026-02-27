@@ -3,6 +3,11 @@ Sampling / Roots / Elicitation をまとめて扱う MCP ホストのサンプ�
 サーバーから追加入力が必要なときに、対話で値を収集して返す。
 """
 
+# 処理の流れ:
+# 1. Sampling / Roots / Elicitation の 3 種類の callback を登録してサーバーへ接続する。
+# 2. サーバーが追加情報を必要としたら、Prompt で値を聞き取って Elicitation 応答を返す。
+# 3. translate ツールを実行し、翻訳と保存先確認を含む一連の対話を host 側で完結させる。
+
 import asyncio
 from pathlib import Path
 

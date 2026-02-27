@@ -1,9 +1,16 @@
 """
 MCP Prompts と Resources を使う Streamlit ホストのサンプル。
-選択したリソース本文をユーザー入力へ追加し、回答の文脈として利用する。
+選択したリソース本文をユーザー入力へ追加し、補足情報付きで会話する。
 """
 
+# 処理の流れ:
+# 1. リポジトリルートの .env を読み込み、Bedrock 用の環境変数を host プロセスへ反映する。
+# 2. stdio で resources サーバーを起動し、Prompt 一覧と Resource 一覧を UI に表示する。
+# 3. 選択された Resource 本文をユーザー入力へ追加し、補足文脈つきで Bedrock に渡す。
+
 import asyncio
+import os
+from pathlib import Path
 
 import streamlit as st
 from mcp import ClientSession, StdioServerParameters
@@ -13,29 +20,54 @@ from strands.agent import Agent
 from strands.models import BedrockModel
 from strands.types.content import ContentBlock, Message
 
+ROOT_DIR = Path(__file__).resolve().parents[3]
+SERVER_DIR = Path(__file__).resolve().parent.parent / "server"
 
-# デコレータ関数を定義
-def with_mcp_client(func) -> ClientSession:
-    """Resources サンプル用 MCP サーバー接続を共通化する。"""
+DEFAULT_MODEL_ID = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+DEFAULT_REGION = "us-west-2"
+
+
+def load_dotenv_file(env_path: Path) -> None:
+    """.env にある KEY=VALUE 形式の設定を環境変数へ読み込む。"""
+    if not env_path.exists():
+        return
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        # 空行・コメント行・不正形式の行は設定値として扱わない。
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        # 最初の = だけで分割し、値側に = を含むケースも壊さない。
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        os.environ.setdefault(key, value)
+
+
+load_dotenv_file(ROOT_DIR / ".env")
+
+
+def with_mcp_client(func):
+    """resources サーバー接続の開始と終了を共通化する。"""
 
     async def wrapper(*args, **kwargs):
-        # resources を提供するサーバーを stdio で起動する。
+        # .env から読み込んだ環境変数も含めて server 側へ引き継ぐ。
         server_params = StdioServerParameters(
             command="uv",
             args=[
                 "run",
                 "--directory",
-                "../server",
+                str(SERVER_DIR),
                 "2_resources_server.py",
             ],
-            env={},
+            env=dict(os.environ),
         )
 
         async with stdio_client(server_params) as (read, write):
             async with ClientSession(read, write) as session:
-                # セッション初期化で prompt/resource API を利用可能にする。
+                # Prompt / Resource API を使える状態にしてから本処理へ渡す。
                 await session.initialize()
-
                 return await func(session, *args, **kwargs)
 
     return wrapper
@@ -43,94 +75,87 @@ def with_mcp_client(func) -> ClientSession:
 
 @with_mcp_client
 async def main(session: ClientSession):
-    """Prompt と Resource の選択を受けてチャットを実行する。"""
+    """Prompt と Resource の選択を受けてチャット応答を生成する。"""
 
     st.title("Chat with MCP")
 
-    # Prompts の選択・引数入力・チャット入力への反映。
+    # Prompt 一覧を表示し、入力テンプレートを chat_input へ反映できるようにする。
     with st.sidebar:
         st.subheader("Prompts")
         list_prompts = await session.list_prompts()
         prompt_names = [prompt.name for prompt in list_prompts.prompts]
-        select_prompt_name = st.selectbox("プロンプトを選択", prompt_names)
+        selected_prompt_name = st.selectbox("Select prompt", prompt_names)
+        selected_prompt = next(
+            prompt
+            for prompt in list_prompts.prompts
+            if prompt.name == selected_prompt_name
+        )
 
-        select_prompt = list(
-            filter(
-                lambda x: x.name == select_prompt_name,
-                list_prompts.prompts,
-            )
-        )[0]
-
-        st.text("パラメーター")
-
+        st.text("Parameters")
         args = {}
-        for argument in select_prompt.arguments:
+        for argument in selected_prompt.arguments:
             value = st.text_input(
                 label=argument.name,
                 placeholder=argument.description,
             )
             args[argument.name] = value
 
-        if st.button("プロンプトをセット"):
-            result = await session.get_prompt(
-                select_prompt_name, arguments=args
-            )  # MCPサーバーからPrompts情報を取得
-            # 選択 prompt の本文を chat_input 初期値として設定する。
-            st.session_state.chat_input = result.messages[0].content.text
+        # Prompt 本文をそのまま次回入力の初期値として使う。
+        if st.button("Set prompt"):
+            prompt_result = await session.get_prompt(
+                selected_prompt_name,
+                arguments=args,
+            )
+            st.session_state.chat_input = prompt_result.messages[0].content.text
 
-    # Resources の選択。チェックした項目だけ会話コンテキストへ注入する。
+    # Resource はチェックしたものだけを会話コンテキストへ注入する。
     with st.sidebar:
         st.divider()
         st.subheader("Resources")
         list_resources = await session.list_resources()
-
-        select_resource: list[Resource] = []
+        selected_resources: list[Resource] = []
 
         for resource in list_resources.resources:
             if st.checkbox(resource.name):
-                select_resource.append(resource)
+                selected_resources.append(resource)
 
-    if input := st.chat_input(
-        key="chat_input"
-    ):  # keyの指定を追加。該当のkeyで保持された値がセットされる
-        user_content: list[ContentBlock] = []
-
-        # まずユーザーの自由入力を追加する。
-        user_content.append({"text": input})
+    # ユーザー入力が送信されたタイミングで 1 ターンの推論を実行する。
+    if user_text := st.chat_input(key="chat_input"):
+        user_content: list[ContentBlock] = [{"text": user_text}]
         user_message: Message = {"role": "user", "content": user_content}
 
-        # 選択リソース本文を読み出し、同一メッセージ内に追記する。
-        for resource in select_resource:
-            if resource:
-                result = await session.read_resource(uri=resource.uri)
-                text = result.contents[0].text
-
-                user_content.append({"text": text})
+        # 選択された Resource 本文を読み出し、同じ user message 内へ追記する。
+        for resource in selected_resources:
+            resource_result = await session.read_resource(uri=resource.uri)
+            resource_text = resource_result.contents[0].text
+            user_content.append({"text": resource_text})
 
         for content in user_content:
             with st.chat_message("user"):
                 st.write(content["text"])
 
+        # .env があればモデル ID とリージョンをそこから取得して使う。
         model = BedrockModel(
-            model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
-            region_name="us-west-2",
+            model_id=os.getenv("BEDROCK_MODEL_ID", DEFAULT_MODEL_ID),
+            region_name=os.getenv(
+                "AWS_REGION",
+                os.getenv("AWS_DEFAULT_REGION", DEFAULT_REGION),
+            ),
         )
-
-        # リソースを加えた入力をもとに回答を生成する。
+        # Resource を含む拡張済み入力を使って応答を生成する。
         agent = Agent(model=model, callback_handler=None)
-
         agent_stream = agent.stream_async([user_message])
 
         async for event in agent_stream:
-            if "message" in event:
-                message: Message = event["message"]
-
-                with st.chat_message(message["role"]):
-                    for content in message["content"]:
-                        if "text" in content:
-                            st.write(content["text"])
-                        else:
-                            st.json(content, expanded=1)
+            if "message" not in event:
+                continue
+            message: Message = event["message"]
+            with st.chat_message(message["role"]):
+                for content in message["content"]:
+                    if "text" in content:
+                        st.write(content["text"])
+                    else:
+                        st.json(content, expanded=1)
 
 
 if __name__ == "__main__":

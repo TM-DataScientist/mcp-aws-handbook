@@ -3,6 +3,11 @@ MCP Prompts / Tools を使う Streamlit ホストのサンプル。
 MCPClient から取得したツールを Strands Agent に渡して実行可能にする。
 """
 
+# 処理の流れ:
+# 1. stdio で tools サーバーを起動し、Prompt と Tool の一覧を MCPClient で取得する。
+# 2. サイドバーで選択した Tool だけを Strands Agent に渡し、必要時に MCP 経由で実行させる。
+# 3. Prompt で作った入力文とユーザー発話を組み合わせ、チャット応答を画面へ表示する。
+
 import asyncio
 
 import streamlit as st

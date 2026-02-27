@@ -3,6 +3,11 @@ Sampling 機能を持つ MCP ホストのサンプル。
 サーバーからの Sampling 要求を受け、Bedrock モデルで応答を生成する。
 """
 
+# 処理の流れ:
+# 1. stdio で Sampling サーバーを起動し、host 側の callback を登録して接続する。
+# 2. サーバーから Sampling 要求が来たら Bedrock へ渡し、生成結果を MCP 形式で返す。
+# 3. translate ツールの入力を集めて呼び出し、翻訳結果をコンソールへ表示する。
+
 import asyncio
 
 from mcp import ClientSession, StdioServerParameters, types

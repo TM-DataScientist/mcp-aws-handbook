@@ -3,6 +3,11 @@ streamable-http で公開する MCP サーバーのサンプル。
 Prompt / Resource / Tool を HTTP 経由で提供し、Web 接続の host から利用させる。
 """
 
+# 処理の流れ:
+# 1. Prompt / Resource / Tool を HTTP トランスポートで公開するための FastMCP サーバーを組み立てる。
+# 2. 各関数は stdio 版と同様にテンプレート・説明文・タグ情報を返す。
+# 3. mcp.run(transport="streamable-http") で Web 接続向けの待ち受けを開始する。
+
 import json
 
 import requests

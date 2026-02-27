@@ -3,6 +3,11 @@ Sampling と Roots を使う MCP サーバーのサンプル。
 翻訳結果を host から受け取った作業ディレクトリ配下のファイルへ保存する。
 """
 
+# 処理の流れ:
+# 1. Sampling で翻訳結果を生成し、host から受け取る Roots 情報を保存先に使う。
+# 2. 出力先は Roots 配下の output.txt を既定値として組み立てる。
+# 3. 同名ファイルがなければ保存し、結果メッセージと本文を host へ返す。
+
 from pathlib import Path
 
 from mcp.server.fastmcp import Context, FastMCP

@@ -3,6 +3,11 @@ MCP 連携なしの Streamlit チャット基礎版。
 Bedrock モデルへメッセージを送り、ストリーム表示する最小構成を示す。
 """
 
+# 処理の流れ:
+# 1. Streamlit から受け取ったユーザー入力を Strands の Message 形式へ変換する。
+# 2. MCP を使わず Bedrock モデルだけで応答を生成し、ストリームで受信する。
+# 3. 生成されたメッセージをチャット UI へ順次描画し、最小構成の動きを確認する。
+
 import asyncio
 
 import streamlit as st

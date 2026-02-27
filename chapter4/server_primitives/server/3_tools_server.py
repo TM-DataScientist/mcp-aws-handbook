@@ -3,6 +3,11 @@ Prompt / Resource / Tool を提供する MCP サーバーのサンプル。
 Qiita API からタグ情報を取得するツールを公開し、host から実行可能にする。
 """
 
+# 処理の流れ:
+# 1. Prompt / Resource / Tool をまとめて公開し、host 側から選択利用できるようにする。
+# 2. Tool では外部 API を呼び出してタグ情報を取得し、JSON 文字列に整形して返す。
+# 3. host 側の Agent は必要に応じてこの Tool を呼び出し、追加情報を取り込んで応答する。
+
 import json
 
 import requests
