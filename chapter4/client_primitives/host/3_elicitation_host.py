@@ -9,6 +9,7 @@ Sampling / Roots / Elicitation をまとめて扱う MCP ホストのサンプ�
 # 3. translate ツールを実行し、翻訳と保存先確認を含む一連の対話を host 側で完結させる。
 
 import asyncio
+import os
 from pathlib import Path
 
 from mcp import ClientSession, StdioServerParameters, types
@@ -21,18 +22,45 @@ from rich.prompt import Prompt
 from strands.agent import Agent
 from strands.models import BedrockModel
 
+ROOT_DIR = Path(__file__).resolve().parents[3]
+SERVER_DIR = Path(__file__).resolve().parent.parent / "server"
+
+DEFAULT_MODEL_ID = "us.amazon.nova-2-lite-v1:0"
+DEFAULT_REGION = "us-west-2"
+
+
+def load_dotenv_file(env_path: Path) -> None:
+    """.env にある KEY=VALUE 形式の設定を環境変数へ読み込む。"""
+    if not env_path.exists():
+        return
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        # 空行・コメント行・不正形式の行は設定値として扱わない。
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        # 最初の = だけで分割し、値側に = を含むケースも壊さない。
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        os.environ.setdefault(key, value)
+
+
+load_dotenv_file(ROOT_DIR / ".env")
+
 
 def with_mcp_client(func) -> ClientSession:
     """Sampling / Roots / Elicitation の各コールバックを設定して接続する。"""
 
     async def wrapper(*args, **kwargs):
-        # Elicitation サンプル用サーバーを stdio 経由で起動する。
+        # スクリプト位置を基準に server ディレクトリを解決し、実行場所に依存しないようにする。
         server_params = StdioServerParameters(
             command="uv",
             args=[
                 "run",
                 "--directory",
-                "../server",
+                str(SERVER_DIR),
                 "3_elicitation_server.py",
             ],
             env={},
@@ -72,12 +100,15 @@ async def handle_sampling_callback(
     send_contents = [{"text": msg.content.text} for msg in request_params.messages]
     # list[ContentBlock]型に変換 [{"text: "LLMに送信する内容"}...] の形式
 
-    # このサンプルでは Bedrock の Nova Lite を利用する。
-    model_id = "us.amazon.nova-2-lite-v1:0"
+    # .env があればモデル ID とリージョンをそこから取得して使う。
+    model_id = os.getenv("BEDROCK_MODEL_ID", DEFAULT_MODEL_ID)
 
     model = BedrockModel(
         model_id=model_id,
-        region_name="us-west-2",
+        region_name=os.getenv(
+            "AWS_REGION",
+            os.getenv("AWS_DEFAULT_REGION", DEFAULT_REGION),
+        ),
         max_tokens=request_params.maxTokens,
         temperature=request_params.temperature,
     )
