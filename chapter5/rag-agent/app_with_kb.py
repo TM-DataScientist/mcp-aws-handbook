@@ -1,9 +1,40 @@
 import asyncio
+import os
+from pathlib import Path
+
 import nest_asyncio
 import streamlit as st
-from agent_with_kb import RagAgent # ここを変更
 
-# This UI is identical to app.py, but uses the KB-enabled agent backend.
+from agent_with_kb import RagAgent  # ここを変更
+
+
+def load_env_file() -> None:
+    """Load a nearby .env file so the app works from the repo root as well."""
+    script_dir = Path(__file__).resolve().parent
+    candidates = [
+        script_dir / ".env",
+        script_dir.parents[1] / ".env",
+    ]
+
+    for env_path in candidates:
+        if not env_path.exists():
+            continue
+
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip("'\"")
+            os.environ.setdefault(key, value)
+        break
+
+# Streamlit runs an event loop already in some environments.
+# `nest_asyncio` patches asyncio so `asyncio.run(...)` is less likely
+# to fail when a loop is already active.
+load_env_file()
 nest_asyncio.apply()
 
 # Streamlitのページ設定

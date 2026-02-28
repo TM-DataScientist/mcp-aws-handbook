@@ -85,6 +85,9 @@ class ResearchAgent:
             with self.tavily_client, self.sequential_thinking_client:
                 # 利用可能なツールを収集
                 tools = []
+                
+                # - append(x) は x を1個追加する
+                # - extend(xs) は xs の中身を1個ずつ追加する
                 tools.extend(self.tavily_client.list_tools_sync())
                 tools.extend(self.sequential_thinking_client.list_tools_sync())
 

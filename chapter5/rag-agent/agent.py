@@ -27,7 +27,11 @@ class RagAgent:
                 "AWS_SECRET_ACCESS_KEY":os.getenv("AWS_SECRET_ACCESS_KEY"),
             }
         )
-
+        
+        
+    # 「command で指定した外部 MCP サーバーを子プロセス
+    # として起動し、その標準入出力 stdin/stdout を使って会話できる
+    # MCPClient を作る」ための薄いラッパー
     def create_stdio_mcp_client(self, command: str, args: List[str], env: Dict) -> MCPClient:
         """stdio MCPクライアントを作成する関数"""
         # Start an MCP subprocess and expose it as a typed client object.
