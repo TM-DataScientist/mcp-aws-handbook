@@ -106,7 +106,7 @@ def _upload_to_s3(file_name: str, bucket_name: str, key: str) -> str:
    
     return response
 
-BUCKET = "<S3バケット名>"  # S3バケット名 : slide-data-<AWSアカウントID>" 
+BUCKET = "slide-data-927852416082"  # S3バケット名
 TEMP_DIR_PATH = tempfile.gettempdir()
 TEMP_FILE_PATH = "report_tmp.md"  # 一時ファイルのパス
 

@@ -13,7 +13,7 @@ from typing import List, Dict
 # and lets one Strands agent use both sets in a single run.
 
 # AgentCore Runtime ARN
-AGENTCORE_RUNTIME_ARN = "<AgentCore RuntimeのAgent ARN>"
+AGENTCORE_RUNTIME_ARN = "arn:aws:bedrock-agentcore:us-west-2:927852416082:runtime/convert_server-61bFlsDJcL"
 
 def create_stdio_mcp_client(command: str, args: List[str], env: Dict) -> MCPClient:
     """Stdio MCPクライアントを作成する関数"""
