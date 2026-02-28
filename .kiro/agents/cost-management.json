@@ -1,0 +1,38 @@
+{
+  "name": "cost-management",
+  "description": "",
+  "prompt": null,
+  "mcpServers": {
+    "awslabs.billing-cost-management-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.billing-cost-management-mcp-server@0.0.8"
+      ],
+      "env": {}
+    },
+    "awslabs.cloudtrail-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.cloudtrail-mcp-server@0.0.7"
+      ],
+      "env": {}
+    },
+    "awslabs.aws-pricing-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.aws-pricing-mcp-server@1.0.21"
+      ],
+      "env": {}
+    }
+  },
+  "tools": [
+    "*"
+  ],
+  "toolAliases": {},
+  "allowedTools": [],
+  "resources": [],
+  "hooks": {},
+  "toolsSettings": {},
+  "includeMcpJson": true,
+  "model": null
+}

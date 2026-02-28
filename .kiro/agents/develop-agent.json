@@ -1,0 +1,45 @@
+{
+  "name": "develop-agent",
+  "description": "",
+  "prompt": null,
+  "mcpServers": {
+    "awslabs.aws-diagram-mcp-server": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "--env",
+        "FASTMCP_LOG_LEVEL=ERROR",
+        "-v",
+        "/tmp:/tmp",
+        "public.ecr.aws/awslabs-mcp/awslabs/aws-diagram-mcp-server:1.0.14"
+      ],
+      "env": {}
+    },
+    "awslabs.ccapi-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.ccapi-mcp-server@1.0.14"
+      ],
+      "env": {}
+    },
+    "awslabs.aws-documentation-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.aws-documentation-mcp-server@1.1.14"
+      ],
+      "env": {}
+    }
+  },
+  "tools": [
+    "*"
+  ],
+  "toolAliases": {},
+  "allowedTools": [],
+  "resources": [],
+  "hooks": {},
+  "toolsSettings": {},
+  "includeMcpJson": true,
+  "model": null
+}
