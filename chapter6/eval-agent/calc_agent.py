@@ -1,5 +1,7 @@
 import asyncio
 import os
+import sys
+from pathlib import Path
 from mcp.client.stdio import stdio_client, StdioServerParameters
 from strands import Agent
 from strands.models import BedrockModel
@@ -11,10 +13,15 @@ from deepeval.test_case import LLMTestCase, MCPServer, MCPToolCall
 from deepeval.metrics import MCPUseMetric
 from deepeval.models import AmazonBedrockModel
 from deepeval import evaluate
+from dotenv import load_dotenv
 
 # This module demonstrates both:
 # 1) running an MCP-enabled calculator agent
 # 2) evaluating MCP tool-usage quality with DeepEval
+
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 # 数値計算エージェントクラス
 class CalcAgent:
@@ -49,7 +56,13 @@ class CalcAgent:
             "MCPサーバーを活用して、ユーザの質問に回答してください"
         )
         # Bedrockのモデルを定義
-        model = BedrockModel(model_id="us.anthropic.claude-sonnet-4-5-20250929-v1:0")
+        model = BedrockModel(
+            model_id=os.getenv(
+                "BEDROCK_MODEL_ID",
+                "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+            ),
+            region_name=os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION")),
+        )
         return Agent(
             model=model,
             system_prompt=system_prompt,

@@ -1,20 +1,28 @@
 import asyncio
+import os
+import sys
+from pathlib import Path
 from deepeval.metrics import GEval
 from deepeval.test_case import LLMTestCaseParams
 from deepeval.test_case import LLMTestCase
 from deepeval.models import AmazonBedrockModel
 from deepeval import evaluate
+from dotenv import load_dotenv
 
 # Demonstrates "LLM-as-a-judge" style relevance evaluation using DeepEval
 # with Amazon Bedrock as the evaluator model backend.
 
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+
 async def eval_relevance():
     # 評価モデルを初期化
     deepeval_model = AmazonBedrockModel(
-        model="us.anthropic.claude-haiku-4-5-20251001-v1:0",
-        region="us-west-2",
-        cost_per_input_token=0.000001,
-        cost_per_output_token=0.000005,
+        model_id=os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-haiku-4-5-20251001-v1:0"),
+        region_name=os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-west-2")),
+        input_token_cost=0.000001,
+        output_token_cost=0.000005,
     )
 
     # 評価メトリクスの設定
