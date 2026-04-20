@@ -1,0 +1,15 @@
+# Amazon ECR レジストリへのログイン
+$ set -a && source .env && set +a
+$ aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+# コンテナイメージのビルド
+$ docker build -t research-agent -f chapter5/research-agent/Dockerfile chapter5/research-agent
+
+# コンテナイメージへタグ付け
+$ docker tag research-agent:latest "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/research-agent:latest"
+
+# コンテナイメージを Amazon ECR リポジトリへ push
+$ docker push "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/research-agent:latest"
+
+# まとめて実行
+$ bash push_research_agent_to_ecr.sh
